@@ -1,0 +1,794 @@
+Inizializzazione progetto
+- composer create-project laravel/laravel:^9.2  nome_progetto
+- composer require laravel/breeze --dev
+- php artisan breeze: install
+    Scegliere Blade (num 0)
+- composer require pacificdev/laravel_9_preset
+- php artisan preset:ui bootstrap --auth
+- package.json → cambio “development” da “mix” a “vite” (con laravel 9.2 teoricamente non serve)
+- resources / js / bootstrap.js → tutte le righe devono essere commentate
+- npm i
+- npm run dev
+
+||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+Upload file:
+
+- andare nel file config/filesystems.php 
+    cambiare: 'default' =>env('FILESYSTEM_DISK', 'public'), da local a public
+    file .env cambiare: 
+    FILESYSTEM_DISK=da local a public
+
+- lanciare il comando | php artisan storage:link |per creare un symlink: 
+
+- form per caricare i dati: IMPORTANTE L'ENCTYPE, SENNò NON FA L'UPLOAD
+
+    <form action=".." method="post" enctype="multipart/form-data">
+        <div class="form-group mb-3">
+            <label class="control-label mb-2">
+                Copertina
+            </label>
+            <input type="file" class="form-control @error('cover_image') is-invalid @enderror" id="cover_image" name="cover_image">
+                {{-- @error('cover_image') @enderror  --}}
+        </div>
+
+- nel controller:
+use Illuminate\Support\Facades\Storage;
+public function store(){
+    //uploads è la cartella, il data è il dato e questa è di default
+    $img_path = Storage::put('uploads', $data['image']);
+    //metodo disk per salvare i file da un'altra parte
+    $img_path = Storage::put('uploads', $data['image']);
+
+}
+
+- se non presente, fare una migration per inserire il path dell'immagine nel db:
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     *
+     * @return void
+     */
+    public function up()
+    {
+        Schema::table('projects', function (Blueprint $table) {
+            $table->string('cover_image')->nullable()->after('slug');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     *
+     * @return void
+     */
+    public function down()
+    {
+        Schema::table('projects', function (Blueprint $table) {
+            $table->dropColumn('cover_image');
+        });
+    }
+};
+- lanciamo il seeder del project aggiungendo (aggiungiamo dei link tramite un link esterno) (facoltativo):
+    $newProj->cover_image = $faker->imageUrl(600, 300, 'animals', true, 'dogs', true, 'jpg');
+- aggiungere enctype nella form e l'input per il file nel create
+    <form action=".." method="post" enctype="multipart/form-data">
+    <div class="form-group mb-3">
+        <label class="control-label mb-2">
+            Copertina
+        </label>
+        <input type="file" class="form-control @error('cover_image') is-invalid @enderror" id="cover_image" name="cover_image">
+            {{-- @error('cover_image') @enderror  --}}
+    </div>
+- modificare i metodi store ed update del controller project
+- metodo  store prima del create/fill e save (qui crea la cartella project_images dove inserirà i file)
+    if($request->has('cover_image')){
+        $path = Storage::disk('public')->put('project_images', $reqeust->cover_image);
+        $form_data['cover_image'] = $path;
+    }
+    aggiungere questo metodo in cima
+        use Illuminate\Support\Facades\Storage;
+
+- metodo update:
+    
+        if($request->hasFile('cover_image')){
+            if($project->cover_image){
+                Storage::delete($project->cover_image);
+            }
+            
+        $path = Storage::disk('public')->put('project_images', $request->cover_image);
+        $form_data['cover_image'] = $path;
+        }
+
+
+- aggiungere le regole di validazione nello StoreProjectRequest e nell'UpdateProjectRequest
+    'cover_image' => ['nullable', 'image', 'max:250'],
+    messaggi
+    'cover_image.image' => 'inserisci formato valido',
+    'cover_image.max' => 'il path non è valido',
+- aggiungere cover_image nel fillable del model project
+
+- visualizzare l'immagine recuperata
+<img class="img-top" src="{{asset('storage/'.$project->cover_image)}}" alt="{{$project->title}}">
+
+REGISTRAZIONE MAIL
+- comando per installare questa libreria
+
+composer require guzzlehttp/guzzle
+
+- per l'invio del testo usiamo mailtrap.io, i dati da modificare nel .env li troviamo su mailtrap.io :
+email testing->inboxes->selezioniamo laravel 7+
+cambiare nel file .env (riga 31)
+MAIL_MAILER=smtp
+MAIL_HOST=sandbox.smtp.mailtrap.io
+MAIL_PORT=2525
+MAIL_USERNAME=f71bfb97df42b7
+MAIL_PASSWORD=5ef53d88c4930b
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS="info@boolpress.it"
+MAIL_FROM_NAME="${APP_NAME}"
+
+- creiamo l'oggetto Mailable con il comando:
+    php artisan make:mail NomeOggetto
+    definire la variabile $lead nel nuovo oggetto Mailable
+    definire il costruttore Mailable
+    definire il contenuto di envelop e content
+
+    <?php
+
+namespace App\Mail;
+
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Content;
+use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Queue\SerializesModels;
+
+class NewContact extends Mailable
+{
+    use Queueable, SerializesModels;
+
+    public $lead;
+
+    /**
+     * Create a new message instance.
+     *
+     * @return void
+     */
+
+    public function __construct($_lead)
+    {
+            $this->lead = $_lead;
+    }
+
+    /**
+     * Get the message envelope.
+     *
+     * @return \Illuminate\Mail\Mailables\Envelope
+     */
+    public function envelope()
+    {
+        return new Envelope(
+            replyTo: 'info@boolpress.com',
+            subject: 'Nuovo progetto inserito',
+        );
+    }
+
+    /**
+     * Get the message content definition.
+     *
+     * @return \Illuminate\Mail\Mailables\Content
+     */
+    public function content()
+    {
+        return new Content(
+            view: 'emails.new_project_added',
+        );
+    }
+
+    /**
+     * Get the attachments for the message.
+     *
+     * @return array
+     */
+    public function attachments()
+    {
+        return [];
+    }
+}
+
+-creare la cartella emails in views
+-creare il file new_project_added.blade.php
+    <h1>Nuovo post inserito</h1>
+    <p>
+        Nuovo Post Inserito <br>
+        Titolo: {{$lead->title}}
+        Slug: {{$lead->slug}}
+        Contenuto: {{$lead->content}}
+    </p>
+-inserire il corpo della mail
+-creare il model lead:
+
+    protected $fillable=['title', 'slug','content'];
+
+- lanciare la migrations:
+
+- php artisan make:migration create_leads_table
+    public function up()
+    {
+        Schema::create('leads', function (Blueprint $table) {
+            $table->id();
+            $table->string('title', 150)->unique;
+            $table->string('slug');
+            $table->string('content')->nullable;
+            $table->timestamps();
+        });
+    }
+
+- php artisan migrate
+
+- aggiungere nel project controller:
+
+    use App\Mail\NewContact;
+    use App\Models\Lead;
+use Illuminate\Support\Favades\Mail;
+
+nello store, prima del redirect:
+$new_lead = new Lead();
+$new_lead->title = $form_data['title'];
+$new_lead->content = $form_data['content'];
+$new_lead->slug = $form_data['slug'];
+$new_lead->save();
+
+Mail::to('info@boolpress.com')->send(new NewContact($new_lead));
+
+
+
+
+
+||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+
+Dopo aver inizializzato il progetto:
+- Creare un db su mysql e collegarlo nel file .env
+- Lanciare la migrations php artisan migrate 
+    Eseguiamo una prima migrazione della tabella degli utenti creata in automatico nel progetto.
+
+    DEFINIZIONE DEL PROGETTO NELLE SUE COMPONENTI E PARTI
+    - creazione Migration con il comando php artisan make:migration nome_della_migration (create_houses_table oppure update_houses_table --table=houses)
+    - Modifico la struttura della tabella :
+        Esempio:
+        Schema::create('projects', function (Blueprint $table) {
+            $table->id();
+            $table->string('title', 150)->unique();
+            $table->text('content')->nullable();
+            $table->string('slug');
+            $table->timestamps();
+        });
+    - Lancio il comando php artisan migrate per creare la tabella nel db
+    - Creare il model con il comando php artisan make:model NomeModelloAlSingolare -rcms --requests
+    - php artisan make:seeder NomeDelSeeder
+    - Se serve il faker:
+        Lanciamo il comando composer remove fzaninotto/faker 
+        Lanciamo il comando composer require fakerphp/faker --dev
+        Editiamo il metodo rum del seeder ed importiamo al suo interno la classe Faker
+        oppure
+        Inviamo i nostri dati
+    - lanciamo il seeder con il comando php artisan db:seed --class=NomeDelSeeder
+    - Lanciamo il comando per creare il controller: php artisan make:controller NomeController oppure se vogliamo le risorse php artisan make:controller --resource NomeController
+
+- Modifichiamo la rotta nel file .web con il nuovo controller: (Recupero tutti i dati per l'utente verificato)
+    Route::middleware(['auth', 'verified'])->name('admin.')->prefix('admin')->group(function () {
+        Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    });
+
+- Modifico in Providers/RouteServiceProviders:
+    da dashboard in admin
+- Creiamo il file admin.blade.php
+
+- Creiamo un controller con il comando : 
+
+    php artisan make:controller Admin/DashboardController (La scritta Admin crea una cartella con dentro il controller).
+-    Inseriamo questa funzione che riporta alla dashboard
+    public function index(){
+    return view('admin.dashboard');
+        }
+
+- Creiamo una cartella admin nella cartella views e ci inseriamo dashboard.blade.php
+
+
+
+- Creiamo il model con il comando : php artisan make:model Post -rcms --requests
+    Lo spostiamo dentro Admin e gli cambiamo il namespace in
+    namespace App\Http\Controllers\Admin;
+
+- Installiamo Faker
+
+- Modifichiamo il projectseeder con i dati che vogliamo inviare
+- Lanciamo il seeder
+
+
+
+
+
+- La validazione non si fa più nel controller, l'array con le validazioni si fa nello StoreProjectRequest.php e poi lo si usa nello store:
+
+StoreProjectRequest.php
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller; //NECESSARIO  
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Mail;
+use App\Http\Requests\StoreProjectRequest;
+use App\Http\Requests\UpdateProjectRequest;
+use App\Models\Project;
+use App\Models\Tag;
+use App\Mail\NewContact;
+use App\Models\Lead;
+
+use App\Models\Type;
+ 
+public function rules()
+{
+    return [
+        'title' => ['required', 'unique:projects', 'max:150'],
+        'content' => ['nullable'],
+
+    ];
+}
+
+metodo  store
+public function store(StoreProjectRequest $request)
+{
+    $form_data = $reqyest->validated();
+}
+
+
+
+
+
+
+
+
+
+
+
+MANY TO MANY
+
+Tabella ponte 
+php artisan make:migration create_role_user_table
+deve contenere i nomi dei due model che deve collegare, in ordine alfabetico, in minuscolo,al singolare e collegati da underscore (es. create_role_user_table).
+
+2 metodi per aggiungere altre colonne nella tabella ponte
+attach:
+- Creiamo una relazione
+    $user = User::find(1);
+    $user->roles()->attach($roleId);
+- Eliminiamo la relazione
+    $user = User::find(1);
+    $user->roles()->detach($roleId); //prendo i ruoli e cancello quello con $roleId = x;
+    se non mettiamo l'id eliminiamo tutte le relazioni
+    $user->roles()->detach();
+- aggiungere ed eliminare contemporaneamente dei record
+    $user = User::find(1);
+    $user->roles()->sync([1,2,3]); //vuole un'array di id, se gli id che sono presenti nella tabella ponte non si trovano nell'array che abbiamo passato nel sinc, toglierà il record (es. in questo caso se avessimo nei record 4,5,6 li eliminerebbe)
+
+- codice
+
+php artisan make:model Tag -rcms --requests
+- model
+
+    class Type extends Model
+    {
+        use HasFactory;
+        protected $fillable= ['name', 'slug'];
+
+        public static function generateSlug($title){
+            return Str::slug($title, '-');
+        }
+        public function project(){
+            return $this->hasMany(Project::class);
+        }
+    }
+
+- Migration
+    public function up()
+    {
+        Schema::create('tags', function (Blueprint $table) {
+            $table->id();
+            $table->string('name', 70)->unique();
+            $table->string('slug', 70);
+            $table->timestamps();
+        });
+    }
+
+- seeder
+    <?php
+
+    namespace Database\Seeders;
+
+    use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+    use Illuminate\Database\Seeder;
+    use App\Models\Tag;
+    class TagSeeder extends Seeder
+    {
+        /**
+        * Run the database seeds.
+        *
+        * @return void
+        */
+        public function run()
+        {
+            $tags = ['html', 'css', 'javascript', 'vuejs', 'php', 'oop', 'mysql','laravel'];
+
+            foreach($tags as $tag){
+                $newTag = new Tag();
+                $newTag->name = $tag;
+                $newTag->slug = Tag::generateSlug($newTag->name);
+
+                $newTag->save();
+            }
+        }
+    }
+
+- lancio il seeder:  php artisan db:seed --class=TagSeeder
+comando:
+- php artisan make:migration create_project_tag_table (project e tag nomi dei model al singolare, minuscolo ed in ordine alfabetico)
+    <?php
+
+    use Illuminate\Database\Migrations\Migration;
+    use Illuminate\Database\Schema\Blueprint;
+    use Illuminate\Support\Facades\Schema;
+
+    return new class extends Migration
+    {
+        /**
+        * Run the migrations.
+        *
+        * @return void
+        */
+        public function up()
+        {
+            Schema::create('project_tag', function (Blueprint $table) {
+                $table->id();
+                //creo la colonna per il project
+                $table->unsignedBigInteger('project_id');
+                //creo la colonna per il foreign
+                $table->foreign('project_id')->references('id')->on('projects');
+                //creo la colonna per il tag
+                $table->unsignedBigInteger('tag_id');
+                //creo la colonna per la foreign
+                $table->foreign('tag_id')->references('id')->on('tags');
+
+                $table->timestamps();
+            });
+        }
+
+        /**
+        * Reverse the migrations.
+        *
+        * @return void
+        */
+        public function down()
+        {
+            Schema::dropIfExists('project_tag');
+        }
+    };
+- lancio la migrations
+- aggiorno il file web.php:
+    Route::middleware(['auth', 'verified'])->name('admin.')->prefix('admin')->group(function () {
+    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::resource('projects', ProjectController::class)->parameters(['projects' => 'project:slug']);
+    Route::resource('types', TypeController::class)->parameters(['types' => 'type:slug']);
+    Route::resource('tags', TagController::class)->parameters(['tags' => 'tag:slug']);
+
+});
+- creo la cartella tags con dentro il file index.blade.php (lo modifico)
+- nel typecontroller definisco la index
+- creo la rotta per tags in admin.blade.php
+
+nei model: 
+- tag 
+    <?php
+
+    namespace App\Models;
+
+    use Illuminate\Database\Eloquent\Factories\HasFactory;
+    use Illuminate\Database\Eloquent\Model;
+    use Illuminate\Support\Str;
+    class Tag extends Model
+    {
+        use HasFactory;
+        protected $fillable =['name', 'slug'];
+        
+        public static function generateSlug($name){
+            return Str::slug($name, '-');
+        }
+        public function projects(){
+            return $this->belongsToMany(Project::class);
+
+        }
+    }
+- project
+- aggiungere type_id nel $fillable di project
+
+    <?php
+
+    namespace App\Models;
+
+    use Illuminate\Database\Eloquent\Factories\HasFactory;
+    use Illuminate\Database\Eloquent\Model;
+    use Illuminate\Support\Str;
+
+    class Project extends Model
+    {
+        use HasFactory;
+        protected $fillable=['title', 'content', 'slug','date_project','type_id','tag_id'];
+
+        public static function generateSlug($title){
+            return Str::slug($title, '-');
+        }
+        
+        public function type(){
+            return $this->belongsTo(Type::class);
+        }
+
+        public function tags(){
+            return $this->belongsToMany(Tag::class);
+
+        }
+    }
+
+- andiamo nel create di project:
+    <div class="form-group mb-3">
+        <label class="control-label mb-2">
+            Tipo
+        </label>
+        @foreach($tags as $tag)
+        {{-- Se può essere selezionato più di un valore devono essere messe le parentesi quadre nel name , crei tipo un'array--}}
+        <input type="checkbox" value={{$tag->id}} name="tags[]"> 
+        <label class="form-check-label">{{$tag->name}}</label>
+        @endforeach
+    </div>
+
+- store di project, dopo il create:
+if($request->has('tags')){
+    $newProj->tags()->attach($request->tags);
+}
+
+- edit
+
+
+AXIOS
+
+-creiamo un nuovo controller 
+php artisan make:controller Api/PostController
+
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use App\Models\Post;
+
+class PostController extends Controller
+{
+    public function index(){
+        $posts = Post::all();
+        return response()->json([
+            'success' => true,
+            'posts' => $posts,
+        ]);
+    }
+
+}
+
+- 1creiamo il controller
+- 1php artisan make:controller Api/PostController
+    <?php
+
+    namespace App\Http\Controllers\Api;
+
+    use App\Http\Controllers\Controller;
+    use Illuminate\Http\Request;
+    use App\Models\Post;
+
+    class PostController extends Controller
+    {
+        public function index(){
+            $posts = Post::all();
+            return response()->json([
+                'success' => true,
+                'results' => $posts,
+            ]);
+        }
+
+    }
+
+
+
+-impostare la rotta in api.php
+
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\PostController as PostController;
+
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register API routes for your application. These
+| routes are loaded by the RouteServiceProvider within a group which
+| is assigned the "api" middleware group. Enjoy building your API!
+|
+*/
+
+Route::get('/posts', [PostController::class, 'index']);
+
+Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+    return $request->user();
+});
+
+
+- creare un progetto con vite 
+1- npm create vite@latest front_boolpress -- --template vue
+
+USARE TUTTI E DUE I PROGRAMMI PER UTILIZZARE LE API
+2- npm i npm run dev
+2- npm install axios
+2- npm add -D sass
+2- npm install bootstrap@5.3.0-alpha1
+2- creare la componente che mostra i progetti, la ocmponente deve avere una chiamata axios che abbiamo de
+
+1 aggiungere la paginazione:
+public function index(){
+    $posts = Project::paginate(5); paginate al posto di all
+    // dd($posts);
+    return response()->json([
+        'success' => true,
+        'results' => $posts,
+    ]);
+}
+
+2- 
+
+<script>
+import axios from 'axios';
+
+export default {
+    name: "PostMain",
+    data() {
+        return {
+            posts: [],
+            loading: true,
+            baseUrl: 'http://127.0.0.1:8000',
+            currentPage: 1,
+            lastPage: null
+        }
+    },
+    methods: {
+        getPosts(project_page) {
+            this.loading = true,
+                axios.get(`${this.baseUrl}/api/posts`, { params: { page: project_page } }).then((response) => {
+                    if (response.data.success) {
+
+                        // se nel backend faccio post::all 
+                        // this.projects = response.data.results 
+
+                        // con paginate
+                        this.projects = response.data.results.data;
+                        this.currentPage = response.data.results.current_page;
+                        this.lastPage = response.data.results.last_page;
+
+                        this.loading = false;
+                    }
+                    else {
+
+                    }
+
+                });
+        }
+    },
+    mounted() {
+        this.getPosts(this.currentPage)
+    }
+}
+</script>
+<template lang="">
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="text-center">Boolpress</h2>
+        </div>
+        <div class="col-12">
+            <div v-if="loading" class="d-flex justify-content-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+            <div v-else class="d-flex flex-wrap gap-5 justify-content-center">
+                <div v-for="post in projects" :key="post.id" class="col-md-3">
+                    <div class="card my-3">
+                        <img :src="projects.cover_image != null ? `${baseUrl}/storage/${projects.cover_image}` : 'https://picsum.photos/200/300'" class="card-img-top" alt="Cover Image">
+                        <div class="card-body">
+                            <h5 class="card-title">{{post.title}}</h5>
+                            <p class="card-text">{{post.excerpt}}</p>
+                            <a href="#" class="btn btn-sm btn-success">Leggi l'articolo</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row text-center">
+                <div class="col-12">
+                    <nav>
+                        <ul class="pagination">
+                            <li :class="currentPage === 1 ? 'disabled' : 'page-item'">
+                                <button class="page-link" @click="getPosts(currentPage - 1)">Prev</button>
+                            </li>
+                            <li :class="currentPage === lastPage ? 'disabled' : 'page-item'">
+                                <button class="page-link" @click="getPosts(currentPage + 1)">Next</button>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</template>
+<style lang="scss" scoped>
+.loader {
+    border: 16px solid #f3f3f3;
+    /* Light grey */
+    border-top: 16px solid #3498db;
+    /* Blue */
+    border-radius: 50%;
+    width: 120px;
+    height: 120px;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+</style>
+
+eager loading: 
+nel with mettiamo le relazioni: 
+dentro il with vanno i nomi dei metodi che abbiamo nel model
+public function index(){
+    $posts = Project::with('tags','type')->paginate(5);
+    // dd($posts);
+    return response()->json([
+        'success' => true,
+        'results' => $posts,
+    ]);
+}
+
+
+- modificare il crossorigin, file cors in config
+riga 22
+'allowed_origins' => [env('APP_FRONTEND_URL', 'http://default.it')],
+
+- modificare il file .env
+APP_FRONTEND_URL = "http://127.0.0.1:8000"
