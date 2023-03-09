@@ -10,7 +10,7 @@ class NewPostController extends Controller
 {
     public function index(){
         $posts = Project::with('tags','type')->paginate(5);
-        // dd($posts);
+        dd($posts);
         return response()->json([
             'success' => true,
             'results' => $posts,
