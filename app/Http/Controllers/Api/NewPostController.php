@@ -16,5 +16,20 @@ class NewPostController extends Controller
             'results' => $posts,
         ]);
     }
+    public function show($slug){
+        $post = Project::with('tags','type')->where('slug', $slug)->first();
+
+        if($post){
+            return response()->json([
+                'success' => true,
+                'post' => $post,
+            ]);
+        }else{
+            return response()->json([
+                'success' => false,
+                'error' => 'Nessun post trovato',
+            ]);
+        }
+    }
 
 }

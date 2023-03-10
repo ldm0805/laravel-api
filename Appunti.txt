@@ -792,3 +792,8 @@ riga 22
 
 - modificare il file .env
 APP_FRONTEND_URL = "http://127.0.0.1:8000"
+
+VUE ROUTING
+installare: 
+- npm install vue-router@4
+-  

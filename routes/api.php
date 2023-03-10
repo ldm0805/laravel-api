@@ -17,6 +17,8 @@ use App\Http\Controllers\Api\NewPostController as NewPostController;
 */
 
 Route::get('/projects', [NewPostController::class, 'index']);
+Route::get('/posts/{slug}', [NewPostController::class, 'show']);
+
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
