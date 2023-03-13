@@ -3,6 +3,9 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\NewPostController as NewPostController;
+use App\Http\Controllers\Api\GuestLeadController as GuestLeadController;
+
+
 
 
 /*
@@ -18,6 +21,8 @@ use App\Http\Controllers\Api\NewPostController as NewPostController;
 
 Route::get('/projects', [NewPostController::class, 'index']);
 Route::get('/posts/{slug}', [NewPostController::class, 'show']);
+Route::post('/contacts', [GuestLeadController::class, 'store']);
+
 
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
